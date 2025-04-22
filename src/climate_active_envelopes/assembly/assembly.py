@@ -1039,7 +1039,7 @@ class CAEAssembly(Assembly):
 
         return total_length
 
-    def apply_gradient(self, values, points, keys, transform_type, rotation_direction, nrbh_size, global_direction=np.array([0, 1, 0])):
+    def apply_gradient(self, values, points, keys, transform_type, rotation_direction, nrbh_size, global_direction=np.array([0, 1, 0]), reset=False):
         """
         Apply a gradient transformation to the parts.
 
@@ -1062,6 +1062,18 @@ class CAEAssembly(Assembly):
             Default is np.array([0, 1, 0]).
         """
 
+        # Initialize storage for original frames if not already done
+        if not hasattr(self, '_original_frames'):
+            self._original_frames = {}
+
+        # Reset transformations if requested
+        if reset:
+            for key in keys:
+                if key in self._original_frames:
+                    part = self.part(key)
+                    part.frame = self._original_frames[key]  # Restore the original frame
+
+
         # Build a KDTree for fast nearest neighbor search.
         tree = cKDTree(points)
 
@@ -1082,9 +1094,6 @@ class CAEAssembly(Assembly):
 
             translation_factor = value * -0.08  # Factor for translation
             rotation_factor = value * -0.1      # Factor for rotation
-
-
-
 
             if transform_type == "translate":
                 # Determine the orientation of the brick based on its local frame and global direction
