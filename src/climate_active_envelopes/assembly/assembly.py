@@ -222,6 +222,26 @@ class CAEAssembly(Assembly):
                         j=j,
                         ornament = ornament
                         )
+                
+            if bond_type == "running_bond":
+                # Calculate the total length of the course
+                total_length = self.calculate_flemish_course_length(
+                    bricks_per_course=bricks_per_course,
+                    brick_spacing=brick_spacing,
+                    course_is_odd=course_is_odd)                              
+                initial_brick_position = curve_midpoint - (direction_vector * (total_length / 2))
+
+                self.generate_running_bond(
+                          initial_brick_position = initial_brick_position,
+                          bricks_per_course = bricks_per_course,
+                          course_is_odd = course_is_odd,
+                          direction_vector = direction_vector,
+                          wall_system = wall_system,
+                          brick_spacing = brick_spacing,
+                          start_edge_type = start_edge_type,
+                          end_edge_typ = end_edge_type,
+                    
+                    )
 
     def create_brick_and_add_to_assembly(self,
                         brick_type, 
@@ -390,8 +410,6 @@ class CAEAssembly(Assembly):
                                 j,
                                 ornament):
 
-
-
         brick_length, _, brick_width, _ = self.get_brick_dimensions()
         brick_full = self.brick_params["brick_full"]
         center_brick_frame = brick_full.frame
@@ -399,7 +417,6 @@ class CAEAssembly(Assembly):
 
         ornament = ornament  # "cross" or "straight", "diamond"
         
-
         if start_edge_type == "corner":
             self.generate_corner_vertical_bond(
                 initial_brick_position=initial_brick_position,
@@ -420,7 +437,6 @@ class CAEAssembly(Assembly):
                 end_edge_type=end_edge_type,
         )
         if not course_is_odd:
-
 
             # Bricks laid short side out (rotated 90 degrees)
             num_bricks = math.ceil(line_length / (brick_length + brick_spacing))
@@ -579,7 +595,6 @@ class CAEAssembly(Assembly):
                     # Add insulated brick if double layer
                     if wall_system == "double_layer":
                         self.create_brick_and_add_to_assembly("insulated", "fixed", brick_frame_final)
-
 
     def generate_corner_vertical_bond(self, 
                                     initial_brick_position,
@@ -1039,7 +1054,68 @@ class CAEAssembly(Assembly):
 
         return total_length
 
-    def apply_gradient(self, values, points, keys, transform_type, rotation_direction, nrbh_size, global_direction=np.array([0, 1, 0]), reset=False):
+    def generate_running_bond(self,
+                          initial_brick_position,
+                          bricks_per_course,
+                          course_is_odd,
+                          direction_vector,
+                          wall_system,
+                          brick_spacing,
+                          start_edge_type,
+                          end_edge_typ):
+        """
+        Generates a running bond pattern for a wall.
+
+        Parameters
+        ----------
+        initial_brick_position : Point
+            The starting position of the first brick.
+        line_length : float
+            The total length of the wall.
+        course_is_odd : bool
+            True if the course is odd, False otherwise.
+        direction_vector : Vector
+            The direction in which the wall is built.
+        wall_system : str
+            The type of wall system ("single_layer" or "double_layer").
+        brick_spacing : float
+            The spacing between bricks.
+        start_edge_type : str
+            The type of the starting edge ("corner" or "straight").
+        end_edge_type : str
+            The type of the ending edge ("corner" or "straight").
+        """
+        brick_length, _, brick_width, _ = self.get_brick_dimensions()
+        brick_full = self.brick_params["brick_full"]
+        center_brick_frame = brick_full.frame
+
+        # Adjust the initial position for odd courses (half-brick offset)
+        if course_is_odd:
+            initial_brick_position += direction_vector * (brick_length / 2 + brick_spacing / 2)
+
+        for brick in range(bricks_per_course):
+            # Calculate the position of the current brick
+            T = direction_vector * (brick * (brick_length + brick_spacing))
+            brick_position = initial_brick_position + T
+
+            # Create the brick frame
+            if direction_vector[1] in [-1, 1]:
+                brick_frame = Frame(brick_position, direction_vector, center_brick_frame.xaxis)
+            else:
+                brick_frame = Frame(brick_position, direction_vector, center_brick_frame.yaxis)
+
+            # Add the brick to the assembly
+            self.create_brick_and_add_to_assembly(brick_type="full", transform_type="fixed", frame=brick_frame)
+
+            # Add insulated bricks for double-layer walls
+            if wall_system == "double_layer":
+                T_insulated = Translation.from_vector(brick_frame.yaxis * (brick_width + brick_spacing))
+                insulated_frame = brick_frame.transformed(T_insulated)
+                self.create_brick_and_add_to_assembly(brick_type="insulated", transform_type="fixed", frame=insulated_frame)
+
+
+
+    def apply_gradient(self, values, points, keys, transform_type, rotation_direction, nrbh_size, reset):
         """
         Apply a gradient transformation to the parts.
 
@@ -1057,36 +1133,35 @@ class CAEAssembly(Assembly):
             Direction for rotation ("left" or other).
         nrbh_size : int
             The number of nearest neighbors to consider.
-        global_direction : array_like, optional
-            A 3D vector representing the global reference for the gradient. 
-            Default is np.array([0, 1, 0]).
         """
 
         # Initialize storage for original frames if not already done
-        if not hasattr(self, '_original_frames'):
+        if not hasattr(self, 'original_frames'):
             self._original_frames = {}
 
         # Reset transformations if requested
         if reset:
             for key in keys:
-                if key in self._original_frames:
+                if key in self.original_frames:
                     part = self.part(key)
-                    part.frame = self._original_frames[key]  # Restore the original frame
-
+                    part.frame = self.original_frames[key]  # Restore the original frame
+            return    
 
         # Build a KDTree for fast nearest neighbor search.
         tree = cKDTree(points)
 
-        # Normalize the global direction (using compas.geometry.normalize_vector or numpy)
+        # Normalize the global direction
+        global_direction = Vector(0, 1, 0)
         global_direction = normalize_vector(global_direction)
 
         for key in keys:
             part = self.part(key)
-            part_position = part.frame.point  # Assumed to be a NumPy array
+            part_position = part.frame.point
 
-            # Nearest neighbor search to grab associated values
+            # Nearest neighbor search to get associated values
             distances, indices = tree.query(part_position, k=nrbh_size)
             neighbor_values = np.array([values[i] for i in indices])
+
             # Use inverse-distance weighting for interpolation
             weights = 1 / (distances + 1e-10)
             weights /= weights.sum()

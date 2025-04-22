@@ -291,5 +291,7 @@ class CAEPart(Part):
         top_face_center = mesh.face_center(part.top)
         part.gripping_frame = Frame(top_face_center, [-1, 0, 0], [0, 1, 0])
 
+        #part.attributes['name'] = name
+
         return part
     
