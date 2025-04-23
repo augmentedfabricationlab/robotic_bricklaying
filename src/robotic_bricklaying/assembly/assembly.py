@@ -7,7 +7,7 @@ from compas.datastructures import Graph
 from compas.datastructures import AssemblyError
 from compas.geometry import Frame, Translation, Rotation, Transformation, Vector, Point, normalize_vector
 from compas_rhino.conversions import plane_to_compas_frame, point_to_compas, mesh_to_rhino, point_to_rhino, vector_to_rhino
-
+from copy import deepcopy
 
 from scipy.spatial import cKDTree
 from compas.geometry import Polygon
@@ -1113,9 +1113,7 @@ class CAEAssembly(Assembly):
                 insulated_frame = brick_frame.transformed(T_insulated)
                 self.create_brick_and_add_to_assembly(brick_type="insulated", transform_type="fixed", frame=insulated_frame)
 
-
-
-    def apply_gradient(self, values, points, keys, transform_type, rotation_direction, nrbh_size, reset):
+    def apply_gradient(self, values, points, keys, transform_type, rotation_direction, nrbh_size):
         """
         Apply a gradient transformation to the parts.
 
@@ -1136,16 +1134,23 @@ class CAEAssembly(Assembly):
         """
 
         # Initialize storage for original frames if not already done
-        if not hasattr(self, 'original_frames'):
+        if not hasattr(self, '_original_frames'):
             self._original_frames = {}
 
-        # Reset transformations if requested
-        if reset:
-            for key in keys:
-                if key in self.original_frames:
-                    part = self.part(key)
-                    part.frame = self.original_frames[key]  # Restore the original frame
-            return    
+        # Populate the original frames if not already stored
+        for key in keys:
+            if key not in self._original_frames:
+                part = self.part(key)
+                self._original_frames[key] = deepcopy(part.frame)  # Store a copy of the original frame
+
+        # # Reset transformations if requested
+        # if reset:
+        #     print("Resetting transformations...")
+        #     for key in keys:
+        #         if key in self._original_frames:
+        #             part = self.part(key)
+        #             part.frame = deepcopy(self._original_frames[key])  # Restore the original frame
+        #     return  
 
         # Build a KDTree for fast nearest neighbor search.
         tree = cKDTree(points)
