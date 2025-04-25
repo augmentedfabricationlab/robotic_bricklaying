@@ -73,7 +73,6 @@ class CAEAssembly(Assembly):
 
         self.to_json(path)
 
-
     def set_brick_params(self, brick_full, brick_insulated, brick_half):
 
         self.brick_params = {
@@ -300,6 +299,7 @@ class CAEAssembly(Assembly):
         # Set the gripping frame of the brick 
         my_brick.gripping_frame = gripping_frame
         my_brick.frame = frame
+        my_brick.original_frame = my_brick.frame.copy()
 
         self.add_part(my_brick, attr_dict={"brick_type": brick_type, "transform_type": transform_type})
 
@@ -1113,7 +1113,18 @@ class CAEAssembly(Assembly):
                 insulated_frame = brick_frame.transformed(T_insulated)
                 self.create_brick_and_add_to_assembly(brick_type="insulated", transform_type="fixed", frame=insulated_frame)
 
-    def apply_gradient(self, values, points, keys, transform_type, rotation_direction, nrbh_size):
+    def reset_transformations(self):
+        """
+        Reset all transformations applied to the parts back to their original state.
+        """
+        for key in self.graph.nodes():
+            part = self.part(key)
+            if hasattr(part, 'original_frame'):
+                # Reset the part's frame to its original frame
+                T = Transformation.from_frame_to_frame(part.frame, part.original_frame)
+                part.transform(T)
+
+    def apply_gradient(self, values, points, keys, transform_type, rotation_direction, nrbh_size, reset):
         """
         Apply a gradient transformation to the parts.
 
@@ -1132,6 +1143,10 @@ class CAEAssembly(Assembly):
         nrbh_size : int
             The number of nearest neighbors to consider.
         """
+
+        if reset:
+            self.reset_transformations()
+            return
 
         # Initialize storage for original frames if not already done
         if not hasattr(self, '_original_frames'):
@@ -1252,6 +1267,8 @@ class CAEAssembly(Assembly):
             for attr, value in attr_dict.items():
                 part.attributes[attr] = value
                 self.graph.node_attribute(key, attr, value)
+
+        part.original_frame = part.frame.copy()
 
         return key
     
