@@ -1147,26 +1147,7 @@ class CAEAssembly(Assembly):
         if reset:
             self.reset_transformations()
             return
-
-        # Initialize storage for original frames if not already done
-        if not hasattr(self, '_original_frames'):
-            self._original_frames = {}
-
-        # Populate the original frames if not already stored
-        for key in keys:
-            if key not in self._original_frames:
-                part = self.part(key)
-                self._original_frames[key] = deepcopy(part.frame)  # Store a copy of the original frame
-
-        # # Reset transformations if requested
-        # if reset:
-        #     print("Resetting transformations...")
-        #     for key in keys:
-        #         if key in self._original_frames:
-        #             part = self.part(key)
-        #             part.frame = deepcopy(self._original_frames[key])  # Restore the original frame
-        #     return  
-
+        
         # Build a KDTree for fast nearest neighbor search.
         tree = cKDTree(points)
 
@@ -1212,6 +1193,11 @@ class CAEAssembly(Assembly):
                 else:
                     translation_vector = local_xaxis * translation_factor
                 T = Translation.from_vector(translation_vector)
+
+
+
+
+                
 
             elif transform_type == "rotate":
                 center_brick_frame = part.frame
