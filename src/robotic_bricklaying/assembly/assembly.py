@@ -73,16 +73,38 @@ class CAEAssembly(Assembly):
 
         self.to_json(path)
 
-    def set_brick_params(self, brick_full, brick_insulated, brick_half):
+    def set_brick_params(self, *parts):
+        """
+        Set or update brick parameters dynamically from part objects.
 
-        self.brick_params = {
-            "brick_full": brick_full,
-            "brick_insulated": brick_insulated,
-            "brick_half": brick_half,
-           
-        }
+        Parameters
+        ----------
+        *parts : list
+            One or more part objects, each with a 'name' attribute in part.attributes.
 
+        Returns
+        -------
+        dict
+            The updated dictionary of brick parameters.
+        """
+        if self.brick_params is None:
+            self.brick_params = {}
+        for part in parts:
+            name = part.attributes.get('name')
+            if name:
+                self.brick_params[name] = part
         return self.brick_params
+    
+    # def set_brick_params(self, brick_full, brick_insulated, brick_half):
+
+    #     self.brick_params = {
+    #         "brick_full": brick_full,
+    #         "brick_insulated": brick_insulated,
+    #         "brick_half": brick_half,
+           
+    #     }
+
+    #     return self.brick_params
 
     def get_brick_dimensions(self):
 
